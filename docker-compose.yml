@@ -1,0 +1,13 @@
+version: '3.7'
+
+services:
+  static-server:
+    container_name: cross_domains_script
+    image: halverneus/static-file-server:latest
+    volumes:
+      - ./dist:/web
+    environment:
+      - CORS=true
+      - FOLDER=/web
+    ports:
+      - 8080:80

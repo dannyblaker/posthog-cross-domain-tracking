@@ -1,0 +1,123 @@
+version: 24
+jobs:
+- name: test
+  jobExecutor: job_runner
+  steps:
+  - !CheckoutStep
+    name: checkout
+    cloneCredential: !DefaultCredential {}
+    withLfs: false
+    withSubmodules: false
+    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
+  - !CommandStep
+    name: unit tests
+    runInContainer: true
+    image: node:18.16.1-alpine3.18
+    interpreter: !DefaultInterpreter
+      commands:
+      - echo "UNIT TESTS"
+      - echo "running in folder:"
+      - ls -sail
+      - echo "npm install"
+      - npm install
+      - echo "npm test"
+      - npm test
+      - jestExitCode=$?
+      - if [ $jestExitCode -eq 0 ]; then
+      - '  echo "All tests passed. Proceeding to the next build step."'
+      - else
+      - '  echo "Some tests failed. Exiting the pipeline."'
+      - '  exit 1'
+      - fi
+    useTTY: false
+    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
+  - !CommandStep
+    name: build test
+    runInContainer: true
+    image: node:18.16.1-alpine3.18
+    interpreter: !DefaultInterpreter
+      commands:
+      - npm install
+      - npm run build
+    useTTY: false
+    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
+  triggers:
+  - !BranchUpdateTrigger
+    branches: main
+    projects: cross_domain_tracking
+  retryCondition: never
+  maxRetries: 3
+  retryDelay: 30
+  caches:
+  - key: '@project_path@-node-modules'
+    path: node_modules
+  timeout: 3600
+- name: deploy
+  jobExecutor: job_runner
+  steps:
+  - !SSHCommandStep
+    name: buiild and deploy
+    remoteMachine: 54.66.243.4
+    userName: ubuntu
+    privateKeySecret: default
+    options: -o StrictHostKeyChecking=no
+    commands:
+    - whoami
+    - cd cross_domain_tracking
+    - echo "check folder"
+    - ls -sail
+    - git fetch --all
+    - git reset --hard origin/main
+    - npm install
+    - npm run build
+    - docker compose -f docker-compose.prod.yml down
+    - docker compose -f docker-compose.prod.yml pull
+    - docker compose -f docker-compose.prod.yml up -d
+    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
+  - !CommandStep
+    name: check prod urls
+    runInContainer: true
+    image: curlimages/curl:latest
+    interpreter: !DefaultInterpreter
+      commands:
+      - counter=0
+      - ''
+      - while [ $counter -lt 30 ]; do
+      - '    response1=$(curl -o /dev/null -s -w "%{http_code}\n" https://example.com/cross-domains-header/index.min.js)'
+      - ''
+      - '    if [ "$response1" -eq 200 ]; then'
+      - '        echo "URL returned a 200 response."'
+      - '        exit 0'
+      - '    else'
+      - '        echo "URL response: $response1 Retrying..."'
+      - '        sleep 1'
+      - '        counter=$((counter+1))'
+      - '    fi'
+      - done
+      - ''
+      - echo "After 30 attempts, could not receive a 200 response for both URLs."
+      - exit 1
+    useTTY: false
+    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
+  - !CommandStep
+    name: notify
+    runInContainer: true
+    image: curlimages/curl:latest
+    interpreter: !DefaultInterpreter
+      commands:
+      - curl "https://gotify.example.com/message?token=@secret:gotify@"
+        -F "title=cross domains" -F "message=Prod ready" -F "priority=5"
+      - echo "done"
+    useTTY: false
+    condition: ALL_PREVIOUS_STEPS_WERE_SUCCESSFUL
+  triggers:
+  - !DependencyFinishedTrigger
+    projects: cross_domain_tracking
+  jobDependencies:
+  - jobName: test
+    requireSuccessful: true
+    artifacts: '**'
+  retryCondition: never
+  maxRetries: 3
+  retryDelay: 30
+  timeout: 3600

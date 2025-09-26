@@ -1,0 +1,22 @@
+version: '3.7'
+
+services:
+  static-server:
+    container_name: cross_domains_script
+    image: halverneus/static-file-server:latest
+    volumes:
+      - ./dist-staging:/web
+    environment:
+      - CORS=true
+      - FOLDER=/web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.static-server.rule=Host(`example.com`) && PathPrefix(`/crossdomains/staging/`)"
+      - "traefik.http.routers.static-server.entrypoints=websecure"
+      - "traefik.http.routers.static-server.tls.certresolver=mytlschallenge"
+    networks:
+      - my_network
+
+networks:
+  my_network:
+    external: true
