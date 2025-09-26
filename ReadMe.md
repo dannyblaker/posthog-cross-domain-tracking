@@ -4,6 +4,10 @@
 
 A HTML header script to enable cross-domain tracking in [Posthog](https://posthog.com/) by identifying users as they navigate across any number of different domains. This is achieved by two core modules found in `src/flows`: `appendCrossPlatformLinks.js` and `identifyCrossPlatformUser.js`.
 
+**You are most welcome to use this code in your commercial projects, all that I ask in return is that you credit my work by providing a link back to this repository.**
+
+Thank you & Enjoy!
+
 ## `appendCrossPlatformLinks.js`
 
 This module is responsible for appending parameters to links on the current page that point to external platform domains. It performs the following tasks:
